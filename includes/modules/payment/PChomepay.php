@@ -54,6 +54,7 @@ if (isset($set_modules) && $set_modules == TRUE) {
         array('name' => 'pchomepay_atm_mode', 'type' => 'select', 'value' => 'Yes'),
         array('name' => 'pchomepay_acct_mode', 'type' => 'select', 'value' => 'Yes'),
         array('name' => 'pchomepay_bank_mode', 'type' => 'select', 'value' => 'Yes'),
+        array('name' => 'pchomepay_atm_expiredays', 'type' => 'text', 'value' => '5'),
         array('name' => 'pchomepay_card_last_number_mode', 'type' => 'select', 'value' => 'Yes')
     );
     return;
@@ -98,9 +99,9 @@ class PChomepay
 
         $amount = (int)$order['order_amount'];
 
-        $return_url = return_url(basename(__FILE__, '.php')) . "&order_id=" . $order['order_id'];
-        $fail_return_url = null;
-        $notify_url = return_url(basename(__FILE__, '.php')) . "&order_id=" . $order['order_id'] . "&notify=1";
+        $return_url = return_url(basename(__FILE__, '.php')) . "&order_id=" . $order['order_id'] . '&paymentresult=1';
+        $fail_return_url = return_url(basename(__FILE__, '.php')) . "&order_id=" . $order['order_id'] . '&paymentresult=0';
+        $notify_url = return_url(basename(__FILE__, '.php')) . '&order_id=' . $order['order_id'];
 
         $items_url = $GLOBALS['ecs']->url() . '/user.php?act=order_detail&order_id=' . $order['order_id'];
         $items_name = $order['order_sn'];
@@ -108,7 +109,11 @@ class PChomepay
         $items_array = ['name' => $items_name, 'url' => $items_url];
         $items[] = (object)$items_array;
 
-        $atm_info = (object)['expire_days' => 3];
+        if ($payment['pchomepay_atm_expiredays']) {
+            $atm_info = (object)['expire_days' => $payment['pchomepay_atm_expiredays']];
+        } else {
+            $atm_info = (object)['expire_days' => 5];
+        }
 
         $card_info = [];
         $card_mode = array();
@@ -130,6 +135,7 @@ class PChomepay
             'pay_type' => $pay_type,
             'amount' => $amount,
             'return_url' => $return_url,
+            'fail_return_url' => $fail_return_url,
             'notify_url' => $notify_url,
             'items' => $items,
             'atm_info' => $atm_info,
@@ -138,12 +144,10 @@ class PChomepay
 
         $paymentData = json_encode($pchomepay_data);
 
-        $this->log($pchomepay_data);
-
         $appID = $payment['pchomepay_appid'];
         $secret = $payment['pchomepay_secret'];
         $sandboxSecret = $payment['pchomepay_test_secret'];
-        $sandBoxMode = $payment['pchomepay_test_mode'] == 'Yes' ? true: false;
+        $sandBoxMode = $payment['pchomepay_test_mode'] == 'Yes' ? true : false;
 
         $pchomepayClient = new PChomepayClient($appID, $secret, $sandboxSecret, $sandBoxMode);
 
@@ -165,35 +169,47 @@ class PChomepay
     {
         $payment = get_payment($_GET['code']);
         $order = order_info($_GET['order_id']);
-        $notify = order_info($_GET['notify']);
-        $order_id = isset($order['order_id']) ? $order['order_id'] : null;
+        $paymentresult = order_info($_GET['paymentresult']);
+
+        if ($paymentresult === '1') {
+            return $paymentresult;
+        } elseif ($paymentresult === '0') {
+            return null;
+        }
+
+//        $order_id = isset($order['order_id']) ? $order['order_id'] : null;
 
         try {
+//            $appID = $payment['pchomepay_appid'];
+//            $secret = $payment['pchomepay_secret'];
+//            $sandboxSecret = $payment['pchomepay_test_secret'];
+//            $sandBoxMode = $payment['pchomepay_test_mode'];
+//
+//            $pchomepayClient = new PChomepayClient($appID, $secret, $sandboxSecret, $sandBoxMode);
+//            $result = $pchomepayClient->getPayment($order_id);
+
+            $notify_type = $_POST['notify_type'];
+            $notify_message = $_POST['notify_message'];
+
+            $order_id = substr($notify_message->order_id, 10);
+
             $sql = 'SELECT log_id FROM ' . $GLOBALS['ecs']->table('pay_log') . " WHERE order_id = '$order_id'";
             $log_id = $GLOBALS['db']->getOne($sql);
 
-            $appID = $payment['pchomepay_appid'];
-            $secret = $payment['pchomepay_secret'];
-            $sandboxSecret = $payment['pchomepay_test_secret'];
-            $sandBoxMode = $payment['pchomepay_test_mode'];
-
-            $pchomepayClient = new PChomepayClient($appID, $secret, $sandboxSecret, $sandBoxMode);
-            $result = $pchomepayClient->getPayment($order_id);
-
             # 紀錄訂單付款方式
-            switch ($result->pay_type) {
+            switch ($notify_message->pay_type) {
                 case 'ATM':
                     $pay_type_note = 'ATM 付款';
-                    $pay_type_note .= '<br>ATM虛擬帳號: ' . $result->payment_info->bank_code . ' - ' . $result->payment_info->virtual_account;
+                    $pay_type_note .= '<br>ATM虛擬帳號: ' . $notify_message->payment_info->bank_code . ' - ' . $notify_message->payment_info->virtual_account;
                     break;
                 case 'CARD':
-                    if ($result->payment_info->installment == 1) {
+                    if ($notify_message->payment_info->installment == 1) {
                         $pay_type_note = '信用卡 付款 (一次付清)';
                     } else {
-                        $pay_type_note = '信用卡 分期付款 (' . $result->payment_info->installment . '期)';
+                        $pay_type_note = '信用卡 分期付款 (' . $notify_message->payment_info->installment . '期)';
                     }
 
-                    if ($payment('pchomepay_card_last_number_mode') == 'Yes') $pay_type_note .= '<br>末四碼: ' . $result->payment_info->card_last_number;
+                    if ($payment('pchomepay_card_last_number_mode') == 'Yes') $pay_type_note .= '<br>末四碼: ' . $notify_message->payment_info->card_last_number;
 
                     break;
                 case 'ACCT':
@@ -203,11 +219,11 @@ class PChomepay
                     $pay_type_note = '銀行支付 付款';
                     break;
                 default:
-                    $pay_type_note = $result->pay_type . '付款';
+                    $pay_type_note = $notify_message->pay_type . '付款';
             }
 
-            if ($result->status == 'W') {
-                $comment = sprintf('訂單交易等待中。<br>error code : %1$s<br>message : %2$s', $result->status_code, OrderStatusCodeEnum::getErrMsg($result->status_code));
+            if ($notify_message->status == 'W') {
+                $comment = sprintf('訂單交易等待中。<br>error code : %1$s<br>message : %2$s', $notify_message->status_code, OrderStatusCodeEnum::getErrMsg($notify_message->status_code));
                 order_paid($log_id, 1, $comment);
 
                 /* 修改此次支付操作的状态为已付款 */
@@ -215,28 +231,20 @@ class PChomepay
                     " SET is_paid = '0' WHERE log_id = '$log_id'";
                 $GLOBALS['db']->query($sql);
 
-            } elseif ($result->status == 'F') {
-                if ($result->status_code) {
-                    $comment = $pay_type_note . '<br>' . sprintf('訂單已失敗。<br>error code : %1$s<br>message : %2$s', $result->status_code, OrderStatusCodeEnum::getErrMsg($result->status_code));
+            } elseif ($notify_message->status == 'F') {
+                if ($notify_message->status_code) {
+                    $comment = $pay_type_note . '<br>' . sprintf('訂單已失敗。<br>error code : %1$s<br>message : %2$s', $notify_message->status_code, OrderStatusCodeEnum::getErrMsg($notify_message->status_code));
                     order_paid($log_id, 0, $comment);
                 } else {
                     order_paid($log_id, 0, '訂單已失敗。');
                 }
 
-                if ($notify) {
-                    echo "success";
-                    exit;
-                }
-                return null;
-            } elseif ($result->status == 'S') {
+            } elseif ($notify_message->status == 'S') {
                 order_paid($log_id, 2, $pay_type_note . '<br>訂單已成功。');
             }
 
-            if ($notify) {
-                echo "success";
-                exit;
-            }
-            return $result;
+            echo "success";
+            exit;
 
         } catch (Exception $e) {
             $this->log($e->getMessage());
@@ -249,7 +257,10 @@ class PChomepay
 
     public function log($string)
     {
-        $fp = fopen('/var/www/ecshop/error_log.txt', "w+");
+        if (!is_dir(ROOT_PATH . 'log/')) {
+            mkdir(ROOT_PATH . 'log/', 0755);
+        }
+        $fp = fopen(ROOT_PATH . 'log/pchomepay_log.txt', "w+");
         fwrite($fp, $string);
         fclose($fp);
     }

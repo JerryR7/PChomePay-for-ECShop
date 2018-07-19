@@ -13,6 +13,7 @@ $_LANG['pchomepay_test_mode_range']['No'] = '否';
 $_LANG['pchomepay_appid'] = 'APPID(必填)';
 $_LANG['pchomepay_test_secret'] = 'SANDBOX_SECRET(必填)';
 $_LANG['pchomepay_secret'] = 'SECRET(必填)';
+$_LANG['pchomepay_atm_expiredays'] = 'ATM 虛擬帳號繳費期限(必填)';
 
 $_LANG['pchomepay_card_mode'] = '信用卡支付';
 $_LANG['pchomepay_card_mode_range']['Yes'] = '啟用';

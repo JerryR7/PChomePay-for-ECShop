@@ -37,7 +37,10 @@ class PChomepayClient
     // 紀錄log
     public function log($string)
     {
-        $fp = fopen('/var/www/ecshop/pchomepay_error_log.txt','w+');
+        if (!is_dir(ROOT_PATH . 'log/')) {
+            mkdir(ROOT_PATH . 'log/', 0755);
+        }
+        $fp = fopen(ROOT_PATH . 'log/pchomepayClient_log.txt', "w+");
         fwrite($fp, $string);
         fclose($fp);
     }
