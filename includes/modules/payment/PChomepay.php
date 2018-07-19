@@ -169,7 +169,7 @@ class PChomepay
     {
         $payment = get_payment($_GET['code']);
         $order = order_info($_GET['order_id']);
-        $paymentresult = order_info($_GET['paymentresult']);
+        $paymentresult = $_GET['paymentresult'];
 
         if ($paymentresult === '1') {
             return $paymentresult;
@@ -191,25 +191,27 @@ class PChomepay
             $notify_type = $_POST['notify_type'];
             $notify_message = $_POST['notify_message'];
 
-            $order_id = substr($notify_message->order_id, 10);
+            $order_data = json_decode(str_replace('\"', '"', $notify_message));
+
+            $order_id = substr($order_data->order_id, 10);
 
             $sql = 'SELECT log_id FROM ' . $GLOBALS['ecs']->table('pay_log') . " WHERE order_id = '$order_id'";
             $log_id = $GLOBALS['db']->getOne($sql);
 
             # 紀錄訂單付款方式
-            switch ($notify_message->pay_type) {
+            switch ($order_data->pay_type) {
                 case 'ATM':
                     $pay_type_note = 'ATM 付款';
-                    $pay_type_note .= '<br>ATM虛擬帳號: ' . $notify_message->payment_info->bank_code . ' - ' . $notify_message->payment_info->virtual_account;
+                    $pay_type_note .= '<br>ATM虛擬帳號: ' . $order_data->payment_info->bank_code . ' - ' . $order_data->payment_info->virtual_account;
                     break;
                 case 'CARD':
-                    if ($notify_message->payment_info->installment == 1) {
+                    if ($order_data->payment_info->installment == 1) {
                         $pay_type_note = '信用卡 付款 (一次付清)';
                     } else {
-                        $pay_type_note = '信用卡 分期付款 (' . $notify_message->payment_info->installment . '期)';
+                        $pay_type_note = '信用卡 分期付款 (' . $order_data->payment_info->installment . '期)';
                     }
 
-                    if ($payment('pchomepay_card_last_number_mode') == 'Yes') $pay_type_note .= '<br>末四碼: ' . $notify_message->payment_info->card_last_number;
+                    if ($payment('pchomepay_card_last_number_mode') == 'Yes') $pay_type_note .= '<br>末四碼: ' . $order_data->payment_info->card_last_number;
 
                     break;
                 case 'ACCT':
@@ -219,11 +221,11 @@ class PChomepay
                     $pay_type_note = '銀行支付 付款';
                     break;
                 default:
-                    $pay_type_note = $notify_message->pay_type . '付款';
+                    $pay_type_note = $order_data->pay_type . '付款';
             }
 
-            if ($notify_message->status == 'W') {
-                $comment = sprintf('訂單交易等待中。<br>error code : %1$s<br>message : %2$s', $notify_message->status_code, OrderStatusCodeEnum::getErrMsg($notify_message->status_code));
+            if ($order_data->status == 'W') {
+                $comment = sprintf('訂單交易等待中。<br>error code : %1$s<br>message : %2$s', $order_data->status_code, OrderStatusCodeEnum::getErrMsg($order_data->status_code));
                 order_paid($log_id, 1, $comment);
 
                 /* 修改此次支付操作的状态为已付款 */
@@ -231,15 +233,15 @@ class PChomepay
                     " SET is_paid = '0' WHERE log_id = '$log_id'";
                 $GLOBALS['db']->query($sql);
 
-            } elseif ($notify_message->status == 'F') {
-                if ($notify_message->status_code) {
-                    $comment = $pay_type_note . '<br>' . sprintf('訂單已失敗。<br>error code : %1$s<br>message : %2$s', $notify_message->status_code, OrderStatusCodeEnum::getErrMsg($notify_message->status_code));
+            } elseif ($order_data->status == 'F') {
+                if ($order_data->status_code) {
+                    $comment = $pay_type_note . '<br>' . sprintf('訂單已失敗。<br>error code : %1$s<br>message : %2$s', $order_data->status_code, OrderStatusCodeEnum::getErrMsg($order_data->status_code));
                     order_paid($log_id, 0, $comment);
                 } else {
                     order_paid($log_id, 0, '訂單已失敗。');
                 }
 
-            } elseif ($notify_message->status == 'S') {
+            } elseif ($order_data->status == 'S') {
                 order_paid($log_id, 2, $pay_type_note . '<br>訂單已成功。');
             }
 
