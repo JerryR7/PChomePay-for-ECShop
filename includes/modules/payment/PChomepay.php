@@ -251,8 +251,6 @@ class PChomepay
 
             return null;
         }
-
-
     }
 
     public function log($string)
@@ -260,8 +258,8 @@ class PChomepay
         if (!is_dir(ROOT_PATH . 'log/')) {
             mkdir(ROOT_PATH . 'log/', 0755);
         }
-        $fp = fopen(ROOT_PATH . 'log/pchomepay_log.txt', "w+");
-        fwrite($fp, $string);
+        $fp = fopen(ROOT_PATH . 'log/pchomepay_log.txt', "a+");
+        fwrite($fp, $string . PHP_EOL);
         fclose($fp);
     }
 

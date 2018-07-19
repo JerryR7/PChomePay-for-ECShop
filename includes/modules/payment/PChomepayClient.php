@@ -40,8 +40,8 @@ class PChomepayClient
         if (!is_dir(ROOT_PATH . 'log/')) {
             mkdir(ROOT_PATH . 'log/', 0755);
         }
-        $fp = fopen(ROOT_PATH . 'log/pchomepayClient_log.txt', "w+");
-        fwrite($fp, $string);
+        $fp = fopen(ROOT_PATH . 'log/pchomepayClient_log.txt', "a+");
+        fwrite($fp, $string . PHP_EOL);
         fclose($fp);
     }
 
