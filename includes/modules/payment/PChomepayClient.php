@@ -90,7 +90,7 @@ class PChomepayClient
     {
         $token = $this->getToken();
 
-        $body = $this->post($url, null, ["pcpay-token: {$token}"], ["CURLOPT_POSTFIELDS" => $data]);
+        $body = $this->post($url, null, ["pcpay-token: {$token->token}"], ["CURLOPT_POSTFIELDS" => $data]);
 
         return $this->handleResult($body);
     }
@@ -99,7 +99,7 @@ class PChomepayClient
     {
         $token = $this->getToken();
 
-        $body = $this->get($url, $data, ["pcpay-token: $token"]);
+        $body = $this->get($url, $data, ["pcpay-token: $token->token"]);
 
         return $this->handleResult($body);
     }
