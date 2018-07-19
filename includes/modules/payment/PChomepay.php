@@ -110,7 +110,7 @@ class PChomepay
         $items[] = (object)$items_array;
 
         if ($payment['pchomepay_atm_expiredays']) {
-            $atm_info = (object)['expire_days' => $payment['pchomepay_atm_expiredays']];
+            $atm_info = (object)['expire_days' => (int)$payment['pchomepay_atm_expiredays']];
         } else {
             $atm_info = (object)['expire_days' => 5];
         }
