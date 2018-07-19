@@ -211,7 +211,7 @@ class PChomepay
                         $pay_type_note = '信用卡 分期付款 (' . $order_data->payment_info->installment . '期)';
                     }
 
-                    if ($payment('pchomepay_card_last_number_mode') == 'Yes') $pay_type_note .= '<br>末四碼: ' . $order_data->payment_info->card_last_number;
+                    if ($payment['pchomepay_card_last_number_mode'] == 'Yes') $pay_type_note .= '<br>末四碼: ' . $order_data->payment_info->card_last_number;
 
                     break;
                 case 'ACCT':
