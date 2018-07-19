@@ -7,44 +7,51 @@
  */
 if (!class_exists('ApiException', false)) {
     if (!include('ApiException.php')) {
-        throw new Exception('Class not found');
+        throw new Exception('ApiException Class not found');
     }
 }
 class PChomepayClient
 {
     const BASE_URL = "https://api.pchomepay.com.tw/v1";
     const SB_BASE_URL = "https://sandbox-api.pchomepay.com.tw/v1";
+    const TOKEN_EXPIRE_SEC = 1800;
 
-    public function __construct($order, $payment)
+    public function __construct($appID, $secret, $sandboxSecret, $sandBox = false, $debug = false)
     {
-        $this->baseURL  = $payment['PChomepay_test_mode'] === 'Yes' ? PChomepayClient::SB_BASE_URL : PChomepayClient::BASE_URL;
+        $baseURL = $sandBox ? PChomePayClient::SB_BASE_URL : PChomePayClient::BASE_URL;
 
-        $this->secret   = $payment['PChomepay_test_mode'] === 'Yes' ? $payment['PChomepay_test_secret'] : $payment['PChomepay_secret'];
+        $this->debug = $debug;
+        $this->appID = $appID;
+        $this->secret = $sandBox ? $sandboxSecret : $secret;
 
-        $this->appID    = $payment['PChomepay_appid'];
+        $this->tokenURL = $baseURL . "/token";
+        $this->postPaymentURL = $baseURL . "/payment";
+        $this->getPaymentURL = $baseURL . "/payment/{order_id}";
+        $this->getRefundURL = $baseURL . "/refund/{refund_id}";
+        $this->postRefundURL = $baseURL . "/refund";
+        $this->postPaymentAuditURL = $baseURL . "/payment/audit";
+
+        $this->userAuth = "{$this->appID}:{$this->secret}";
+    }
+
+    // 紀錄log
+    public function log($string)
+    {
+        $fp = fopen('/var/www/ecshop/pchomepay_error_log.txt','w+');
+        fwrite($fp, $string);
+        fclose($fp);
     }
 
     // 建立訂單
     public function postPayment($data)
     {
-        $token = $this->getToken()->token;
-        $postPaymentURL = $this->baseURL . '/payment';
-        $result = $this->postAPI($token, $postPaymentURL, $data);
-        $this->log($token);
-        $this->log($result);
-        return $this->handleResult($result);
+        return $this->postAPI($this->postPaymentURL, $data);
     }
 
     // 建立退款
     public function postRefund($data)
     {
-        $token = $this->getToken()->token;
-        $postRefundURL = $this->baseURL . '/refund';
-
-        $result = $this->postAPI($token, $postRefundURL, $data);
-
-        return $this->handleResult($result);
-
+        return $this->postAPI($this->postRefundURL, $data);
     }
 
     // 查詢訂單
@@ -54,50 +61,92 @@ class PChomepayClient
             throw new Exception('Order does not exist!', 20002);
         }
 
-        $token = $this->getToken()->token;
-        $getPaymentURL = $this->baseURL . "/payment/{$orderID}";
+        return $this->getAPI(str_replace("{order_id}", $orderID, $this->getPaymentURL));
+    }
 
-        $result = $this->getAPI($token, $getPaymentURL);
-
-        $this->log($result);
-
-        return $this->handleResult($result);
-
+    // 訂單審單
+    public function postPaymentAudit($data)
+    {
+        return $this->postAPI($this->postPaymentAuditURL, $data);
     }
 
     // 取Token
-    public function getToken()
+    protected function getToken()
     {
-        $tokenURL = $this->baseURL . "/token";
-
         $userAuth = "{$this->appID}:{$this->secret}";
 
-        $body = $this->postToken($userAuth, $tokenURL);
+        return $this->postToken($userAuth, $this->tokenURL);
+
+    }
+
+    protected function postToken($userAuth, $url)
+    {
+        $body = $this->post($url, null, [], ["CURLOPT_USERPWD" => $userAuth]);
 
         return $this->handleResult($body);
     }
 
-    /**
-     * @param $url
-     * @param $userAuth
-     * @return string
-     */
-    private function postToken($userAuth, $url)
+    protected function postAPI($url, $data)
     {
-        return $this->post($url, null, [], ["CURLOPT_USERPWD" => $userAuth]);
+        $token = $this->getToken();
+
+        $body = $this->post($url, null, ["pcpay-token: {$token}"], ["CURLOPT_POSTFIELDS" => $data]);
+
+        return $this->handleResult($body);
     }
 
-    private function postAPI($token, $url, $data)
+    protected function getAPI($url, $data = [])
     {
-        return $this->post($url, null, ["pcpay-token: {$token}"], ["CURLOPT_POSTFIELDS" => $data]);
+        $token = $this->getToken();
+
+        $body = $this->get($url, $data, ["pcpay-token: $token"]);
+
+        return $this->handleResult($body);
     }
 
-    private function getAPI($token, $url, $data = [])
+    private function handleResult($result)
     {
-        return $this->get($url, $data, ["pcpay-token: $token"]);
+        $jsonErrMap = [
+            JSON_ERROR_NONE => 'No error has occurred',
+            JSON_ERROR_DEPTH => 'The maximum stack depth has been exceeded',
+            JSON_ERROR_STATE_MISMATCH => 'Invalid or malformed JSON',
+            JSON_ERROR_CTRL_CHAR => 'Control character error, possibly incorrectly encoded',
+            JSON_ERROR_SYNTAX => 'Syntax error',
+            JSON_ERROR_UTF8 => 'Malformed UTF-8 characters, possibly incorrectly encoded	PHP 5.3.3',
+            JSON_ERROR_RECURSION => 'One or more recursive references in the value to be encoded	PHP 5.5.0',
+            JSON_ERROR_INF_OR_NAN => 'One or more NAN or INF values in the value to be encoded	PHP 5.5.0',
+            JSON_ERROR_UNSUPPORTED_TYPE => 'A value of a type that cannot be encoded was given	PHP 5.5.0'
+        ];
 
+        $obj = json_decode($result);
+
+        $err = json_last_error();
+
+        if ($err) {
+            $errStr = "($err)" . $jsonErrMap[$err];
+            if (empty($errStr)) {
+                $errStr = " - unknow error, error code ({$err})";
+            }
+            $this->log("server result error($err) {$errStr}:$result");
+            throw new Exception("server result error($err) {$errStr}:$result");
+        }
+
+        if (isset($obj->error_type)) {
+            $this->log("\n錯誤類型：" . $obj->error_type . "\n錯誤代碼：" . $obj->code . "\n錯誤訊息：" . ApiException::getErrMsg($obj->code));
+            throw new Exception("交易失敗，請聯絡網站管理員。錯誤代碼：" . $obj->code, $obj->code);
+        }
+
+        if (empty($obj->token) && empty($obj->order_id)) {
+
+            return false;
+        }
+
+        if (isset($obj->status_code)) {
+            $this->log("訂單編號：" . $obj->order_id . " 已失敗。\n原因：" . OrderStatusCodeEnum::getErrMsg($obj->status_code));
+        }
+
+        return $obj;
     }
-
 
     /**
      * @param $url
@@ -148,25 +197,6 @@ class PChomepayClient
         return $content;
     }
 
-    /**
-     * @param $params
-     * @return string
-     */
-    private function parseReqData($params)
-    {
-        $reqData = '';
-        if (is_array($params) && !empty($params)) {
-            foreach ($params as $key => $value) {
-                $reqData .= "{$key}={$value}&";
-            }
-            $reqData = rtrim($reqData, '&');
-        } else {
-            $reqData = $params;
-        }
-
-        return $reqData;
-    }
-
     private function get($url, $params, array $headers = null, array $settings = [], $timeout = 500)
     {
         $query = "?";
@@ -211,53 +241,27 @@ class PChomepayClient
         return $content;
     }
 
-    private function handleResult($result)
+    /**
+     * @param $params
+     * @return string
+     */
+    private function parseReqData($params)
     {
-        $jsonErrMap = [
-            JSON_ERROR_NONE => 'No error has occurred',
-            JSON_ERROR_DEPTH => 'The maximum stack depth has been exceeded',
-            JSON_ERROR_STATE_MISMATCH => 'Invalid or malformed JSON',
-            JSON_ERROR_CTRL_CHAR => 'Control character error, possibly incorrectly encoded',
-            JSON_ERROR_SYNTAX => 'Syntax error',
-            JSON_ERROR_UTF8 => 'Malformed UTF-8 characters, possibly incorrectly encoded	PHP 5.3.3',
-            JSON_ERROR_RECURSION => 'One or more recursive references in the value to be encoded	PHP 5.5.0',
-            JSON_ERROR_INF_OR_NAN => 'One or more NAN or INF values in the value to be encoded	PHP 5.5.0',
-            JSON_ERROR_UNSUPPORTED_TYPE => 'A value of a type that cannot be encoded was given	PHP 5.5.0'
-        ];
-
-        $obj = json_decode($result);
-        $this->log($obj);
-        $err = json_last_error();
-
-        if ($err) {
-            $errStr = "($err)" . $jsonErrMap[$err];
-            if (empty($errStr)) {
-                $errStr = " - unknow error, error code ({$err})";
+        $reqData = '';
+        if (is_array($params) && !empty($params)) {
+            foreach ($params as $key => $value) {
+                $reqData .= "{$key}={$value}&";
             }
-            throw new Exception("server result error($err) {$errStr}:$result");
+            $reqData = rtrim($reqData, '&');
+        } else {
+            $reqData = $params;
         }
 
-        if (property_exists($obj, "error_type")) {
-
-            $apiException = new ApiException();
-            $error_message = $apiException->getErrMsg($obj->code);
-
-            throw new Exception($error_message, $obj->code);
-        }
-
-        return $obj;
+        return $reqData;
     }
 
     public function formatOrderTotal($order_total)
     {
         return intval(round($order_total));
     }
-
-    public function log($string)
-    {
-        $fp = fopen('/var/www/ecshop/error_log2.txt','w+');
-        fwrite($fp, $string);
-        fclose($fp);
-    }
-
 }
