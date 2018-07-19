@@ -4,7 +4,7 @@ global $_LANG;
 
 $_LANG['pchomepay'] = '<font color=red>PChomePay 支付連</font>';
 
-$_LANG['pchomepay_desc'] = ' 透過 <img src="/languages/zh_tw/payment/pchomepay_logo.png"> 付款。<br>連結到<font color=red> PChomePay 支付連</font> 付款頁面進行付款。';
+$_LANG['pchomepay_desc'] = ' 透過 PChomePay 支付連 付款。<br>連結到 PChomePay 支付連 付款頁面進行付款。';
 
 $_LANG['pchomepay_test_mode'] = '測試模式';
 $_LANG['pchomepay_test_mode_range']['Yes'] = '是';
