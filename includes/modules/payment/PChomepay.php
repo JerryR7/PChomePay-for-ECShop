@@ -104,7 +104,7 @@ class PChomepay
         $notify_url = return_url(basename(__FILE__, '.php')) . '&order_id=' . $order['order_id'];
 
         $items_url = $GLOBALS['ecs']->url() . '/user.php?act=order_detail&order_id=' . $order['order_id'];
-        $items_name = $order['order_sn'];
+        $items_name = get_goods_name_by_id($order['order_id']);
         $items_array = array();
         $items_array = ['name' => $items_name, 'url' => $items_url];
         $items[] = (object)$items_array;
@@ -153,6 +153,7 @@ class PChomepay
 
         try {
             $result = $pchomepayClient->postPayment($paymentData);
+            order_paid($order['log_id'], 0, '訂單編號：' . $result->order_id);
             $button = '<div style="text-align:center"><input type="button" onclick="window.open(\'' . $result->payment_url . '\')" value="' . $GLOBALS['_LANG']['pchomepay_button'] . '"/></div>';
             return $button;
 
