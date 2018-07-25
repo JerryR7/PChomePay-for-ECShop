@@ -198,32 +198,30 @@ class PChomepay
             $sql = 'SELECT log_id FROM ' . $GLOBALS['ecs']->table('pay_log') . " WHERE order_id = '$order_id'";
             $log_id = $GLOBALS['db']->getOne($sql);
 
-            $pay_type_note = '平台訂單編號: ' . $order_data->order_id . '<br>';
-
             # 紀錄訂單付款方式
             switch ($order_data->pay_type) {
                 case 'ATM':
-                    $pay_type_note .= 'ATM 付款';
+                    $pay_type_note = 'ATM 付款';
                     $pay_type_note .= '<br>ATM虛擬帳號: ' . $order_data->payment_info->bank_code . ' - ' . $order_data->payment_info->virtual_account;
                     break;
                 case 'CARD':
                     if ($order_data->payment_info->installment == 1) {
-                        $pay_type_note .= '信用卡 付款 (一次付清)';
+                        $pay_type_note = '信用卡 付款 (一次付清)';
                     } else {
-                        $pay_type_note .= '信用卡 分期付款 (' . $order_data->payment_info->installment . '期)';
+                        $pay_type_note = '信用卡 分期付款 (' . $order_data->payment_info->installment . '期)';
                     }
 
                     if ($payment['pchomepay_card_last_number_mode'] == 'Yes') $pay_type_note .= '<br>末四碼: ' . $order_data->payment_info->card_last_number;
 
                     break;
                 case 'ACCT':
-                    $pay_type_note .= '支付連餘額 付款';
+                    $pay_type_note = '支付連餘額 付款';
                     break;
                 case 'EACH':
-                    $pay_type_note .= '銀行支付 付款';
+                    $pay_type_note = '銀行支付 付款';
                     break;
                 default:
-                    $pay_type_note .= $order_data->pay_type . '付款';
+                    $pay_type_note = $order_data->pay_type . '付款';
             }
 
             if ($order_data->status == 'W') {
