@@ -187,17 +187,7 @@ class PChomepay
             return null;
         }
 
-//        $order_id = isset($order['order_id']) ? $order['order_id'] : null;
-
         try {
-//            $appID = $payment['pchomepay_appid'];
-//            $secret = $payment['pchomepay_secret'];
-//            $sandboxSecret = $payment['pchomepay_test_secret'];
-//            $sandBoxMode = $payment['pchomepay_test_mode'];
-//
-//            $pchomepayClient = new PChomepayClient($appID, $secret, $sandboxSecret, $sandBoxMode);
-//            $result = $pchomepayClient->getPayment($order_id);
-
             $notify_type = $_POST['notify_type'];
             $notify_message = $_POST['notify_message'];
 
