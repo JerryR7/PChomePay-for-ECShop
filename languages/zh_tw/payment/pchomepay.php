@@ -49,8 +49,8 @@ $_LANG['pchomepay_card_last_number_mode_range']['No'] = '關閉';
 
 $_LANG['pchomepay_button'] = 'PChomePay 支付連 付款';
 
-$_LANG['pay_success'] = 'PChomePay 付款成功';
-$_LANG['pay_fail'] = 'PChomePay 付款失敗';
+$_LANG['pay_success'] = '已收到訂單';
+$_LANG['pay_fail'] = '付款失敗';
 $_LANG['pay_wait'] = 'PChomePay 付款中';
 
 $_LANG['text_goods'] = '網購商品';
